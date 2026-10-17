@@ -55,7 +55,9 @@ RUN --mount=type=cache,target=/app/.npm \
 
 COPY --link --chown=1000 . .
 
-RUN git config --global --add safe.directory /app && \
+# O prerender lê /app/.env (OPENAI_BASE_URL etc.); o upstream deixou de versioná-lo.
+RUN cp .env.example .env && \
+    git config --global --add safe.directory /app && \
     npm run build
 
 # mongo image
