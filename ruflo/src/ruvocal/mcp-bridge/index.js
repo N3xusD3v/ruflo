@@ -1235,6 +1235,8 @@ app.get("/mcp-servers", (_, res) => {
 // exposed as "local:<name>" so they never collide with hosted ids.
 const LOCAL_LLM_BASE_URL = (process.env.LOCAL_LLM_BASE_URL || "").replace(/\/+$/, "");
 const LOCAL_PREFIX = "local:";
+const OLLAMA_PREFIX = "ollama:"; // Ollama Cloud ids ("gpt-oss:120b") get a prefix too
+const CF_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || "";
 
 const PROVIDER_ROUTES = {
   openai: { baseURL: "https://api.openai.com/v1/chat/completions", getKey: () => process.env.OPENAI_API_KEY },
@@ -1247,6 +1249,15 @@ const PROVIDER_ROUTES = {
     getKey: () => process.env.ANTHROPIC_API_KEY,
     extraHeaders: () => (process.env.ANTHROPIC_WORKSPACE_ID ? { "anthropic-workspace-id": process.env.ANTHROPIC_WORKSPACE_ID } : {}),
   },
+  // Cloudflare Workers AI (free daily Neurons; does not train on prompts).
+  cloudflare: {
+    baseURL: `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/ai/v1/chat/completions`,
+    getKey: () => (CF_ACCOUNT_ID ? process.env.CLOUDFLARE_AI_TOKEN : ""),
+  },
+  // Z.ai GLM (glm-*-flash models are free).
+  zai: { baseURL: "https://api.z.ai/api/paas/v4/chat/completions", getKey: () => process.env.ZAI_API_KEY },
+  // Ollama Cloud (hosted models; does not train on prompts).
+  ollama: { baseURL: "https://ollama.com/v1/chat/completions", getKey: () => process.env.OLLAMA_API_KEY },
   local: {
     baseURL: `${LOCAL_LLM_BASE_URL}/chat/completions`,
     // Ollama ignores the key, but the proxy requires a non-empty one.
@@ -1257,6 +1268,9 @@ const PROVIDER_ROUTES = {
 function resolveProvider(model) {
   if (typeof model === "string") {
     if (model.startsWith(LOCAL_PREFIX)) return "local";
+    if (model.startsWith(OLLAMA_PREFIX)) return "ollama";
+    if (model.startsWith("@cf/")) return "cloudflare";
+    if (model.startsWith("glm-")) return "zai";
     if (model.startsWith("claude-")) return "anthropic";
     if (model.startsWith("gemini-")) return "gemini";
     if (model.includes("/")) return "openrouter";
@@ -1299,9 +1313,12 @@ function withThoughtSignatures(messages) {
   });
 }
 
-// Model id as the upstream expects it (strips the "local:" prefix).
+// Model id as the upstream expects it (strips the "local:"/"ollama:" prefixes).
 function upstreamModelId(providerName, model) {
-  return providerName === "local" && typeof model === "string" ? model.slice(LOCAL_PREFIX.length) : model;
+  if (typeof model !== "string") return model;
+  if (providerName === "local") return model.slice(LOCAL_PREFIX.length);
+  if (providerName === "ollama") return model.slice(OLLAMA_PREFIX.length);
+  return model;
 }
 
 // =============================================================================
@@ -1973,6 +1990,9 @@ const KNOWN_MODELS = {
   openai: ["gpt-4.1", "gpt-4.1-mini", "gpt-4o", "gpt-4o-mini", "o3-mini"],
   anthropic: [],
   openrouter: [],
+  cloudflare: ["@cf/meta/llama-3.3-70b-instruct-fp8-fast", "@cf/mistralai/mistral-small-3.1-24b-instruct"],
+  zai: ["glm-4.7-flash", "glm-4.5-flash"],
+  ollama: [],
   local: [],
 };
 
@@ -2026,6 +2046,31 @@ const MODEL_LISTERS = {
       .filter(id => id.endsWith(":free") || OPENROUTER_MODELS.includes(id));
     return [...new Set([...ids, ...OPENROUTER_MODELS])];
   },
+  async cloudflare(key) {
+    const r = await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/ai/models/search?task=${encodeURIComponent("Text Generation")}&per_page=100`,
+      { headers: { Authorization: `Bearer ${key}` } }
+    );
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const { result = [] } = await r.json();
+    // Only models that declare function calling (the chat always sends tools).
+    return result
+      .filter(m => (m.properties || []).some(p => p.property_id === "function_calling" && String(p.value) === "true"))
+      .map(m => m.name);
+  },
+  async zai(key) {
+    const r = await fetch("https://api.z.ai/api/paas/v4/models", { headers: { Authorization: `Bearer ${key}` } });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const { data = [] } = await r.json();
+    // Only the free Flash tier unless ZAI_ALL_MODELS=true (paid models bill the account).
+    return data.map(m => m.id).filter(id => process.env.ZAI_ALL_MODELS === "true" || /flash/i.test(id));
+  },
+  async ollama(key) {
+    const r = await fetch("https://ollama.com/v1/models", { headers: { Authorization: `Bearer ${key}` } });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const { data = [] } = await r.json();
+    return data.map(m => OLLAMA_PREFIX + m.id);
+  },
   async local() {
     const r = await fetch(`${LOCAL_LLM_BASE_URL}/models`);
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -2035,7 +2080,7 @@ const MODEL_LISTERS = {
 };
 
 // Picker order: first entry is the chat UI's default model.
-const PROVIDER_ORDER = ["gemini", "anthropic", "openai", "openrouter", "local"];
+const PROVIDER_ORDER = ["gemini", "anthropic", "openai", "cloudflare", "zai", "ollama", "openrouter", "local"];
 const MODELS_TTL_MS = 10 * 60 * 1000;
 let modelsCache = { at: 0, ids: [] };
 

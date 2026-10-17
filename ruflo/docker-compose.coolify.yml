@@ -34,6 +34,12 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       # Só para chave Anthropic sem workspace (a API exige o cabeçalho).
       ANTHROPIC_WORKSPACE_ID: ${ANTHROPIC_WORKSPACE_ID:-}
+      # Cloudflare Workers AI (token com permissão Workers AI; não treina com os dados).
+      CLOUDFLARE_ACCOUNT_ID: ${CLOUDFLARE_ACCOUNT_ID:-35f8be2ffd8ab7bde84c9379dd89dbda}
+      CLOUDFLARE_AI_TOKEN: ${CLOUDFLARE_AI_TOKEN:-}
+      # Z.ai (só os modelos glm-*-flash, grátis) e Ollama Cloud.
+      ZAI_API_KEY: ${ZAI_API_KEY:-}
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
       # Extras do OpenRouter além dos ":free" com ferramentas (ids separados por vírgula).
       OPENROUTER_MODELS: ${OPENROUTER_MODELS:-}
       # Primeiro modelo da lista = padrão do chat (o Pro do Gemini grátis não tem cota).
