@@ -37,7 +37,7 @@ services:
       # Extras do OpenRouter além dos ":free" com ferramentas (ids separados por vírgula).
       OPENROUTER_MODELS: ${OPENROUTER_MODELS:-}
       # Primeiro modelo da lista = padrão do chat (o Pro do Gemini grátis não tem cota).
-      DEFAULT_MODEL: ${DEFAULT_MODEL:-gemini-flash-latest}
+      DEFAULT_MODEL: ${DEFAULT_MODEL:-gemini-3.5-flash}
       # Servidor local compatível com OpenAI (ex.: Ollama em CPU): http://host:11434/v1.
       # Vazio = desligado. Os modelos aparecem como "local:<nome>".
       LOCAL_LLM_BASE_URL: ${LOCAL_LLM_BASE_URL:-}
