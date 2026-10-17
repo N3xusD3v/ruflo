@@ -1313,6 +1313,10 @@ function withThoughtSignatures(messages) {
   });
 }
 
+// Models tried, in order, when the requested one answers a retryable error.
+const FALLBACK_MODELS = (process.env.FALLBACK_MODELS || "").split(",").map(s => s.trim()).filter(Boolean);
+const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
+
 // Model id as the upstream expects it (strips the "local:"/"ollama:" prefixes).
 function upstreamModelId(providerName, model) {
   if (typeof model !== "string") return model;
@@ -1878,8 +1882,8 @@ app.get('/autopilot/detail/:token', (req, res) => {
 // =============================================================================
 
 app.post("/chat/completions", async (req, res) => {
-  const model = req.body?.model;
-  const providerName = resolveProvider(model);
+  let model = req.body?.model;
+  let providerName = resolveProvider(model);
   const provider = PROVIDER_ROUTES[providerName];
   const apiKey = provider.getKey();
 
@@ -1906,25 +1910,49 @@ app.post("/chat/completions", async (req, res) => {
       body.messages = [{ role: "system", content: systemPrompt }, ...body.messages];
     }
   }
-  if (providerName === "gemini") body.messages = withThoughtSignatures(body.messages);
   if (Array.isArray(body.tools) && body.tools.length) {
     body.tools = await selectTools(body.tools, body.messages, { alwaysNames: BUILTIN_TOOLS.map(t => t.name) });
   }
 
   // Route to autopilot handler if x-autopilot header is set
   if (req.headers['x-autopilot'] === 'true') {
+    if (providerName === "gemini") body.messages = withThoughtSignatures(body.messages);
     return handleAutopilot(req, res, provider, body);
   }
 
   try {
-    const upstream = await fetch(provider.baseURL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}`, ...provider.extraHeaders?.() },
-      body: JSON.stringify(body),
-    });
+    // Free tiers often answer 429/5xx under load: retry on FALLBACK_MODELS
+    // (only those with a key), before anything is written to the client.
+    const candidates = [model, ...FALLBACK_MODELS.filter(m => m !== model)];
+    let upstream;
+    let errBody;
+    for (let i = 0; i < candidates.length; i++) {
+      const pn = resolveProvider(candidates[i]);
+      const pv = PROVIDER_ROUTES[pn];
+      const key = pv.getKey();
+      if (!key) continue;
+      const attemptBody = {
+        ...body,
+        model: upstreamModelId(pn, candidates[i]),
+        messages: pn === "gemini" ? withThoughtSignatures(body.messages) : body.messages,
+      };
+      upstream = await fetch(pv.baseURL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, ...pv.extraHeaders?.() },
+        body: JSON.stringify(attemptBody),
+      });
+      providerName = pn;
+      model = candidates[i];
+      errBody = undefined;
+      if (upstream.ok || !RETRYABLE_STATUS.has(upstream.status)) break;
+      errBody = await upstream.text();
+      const next = candidates.slice(i + 1).find(m => PROVIDER_ROUTES[resolveProvider(m)].getKey());
+      if (!next) break;
+      console.warn(`[fallback] ${pn}/${candidates[i]} ${upstream.status} -> ${next}`);
+    }
 
     if (!upstream.ok) {
-      const errBody = await upstream.text();
+      errBody ??= await upstream.text();
       console.error(`Proxy error [${providerName}/${model}]: ${upstream.status} ${errBody.substring(0, 200)}`);
       // Normalize all upstream errors into OpenAI-compatible format so the
       // Chat UI's OpenAI SDK can parse them instead of "400 (no body)".

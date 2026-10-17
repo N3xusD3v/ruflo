@@ -45,6 +45,8 @@ services:
       OPENROUTER_MODELS: ${OPENROUTER_MODELS:-}
       # Primeiro modelo da lista = padrão do chat (o Pro do Gemini grátis não tem cota).
       DEFAULT_MODEL: ${DEFAULT_MODEL:-gemini-3.5-flash}
+      # Tentados em ordem quando o modelo escolhido responde 429/5xx (planos grátis).
+      FALLBACK_MODELS: ${FALLBACK_MODELS:-@cf/meta/llama-3.3-70b-instruct-fp8-fast,ollama:gpt-oss:20b,gemini-3.5-flash}
       # Ferramentas enviadas por chamada, escolhidas por relevância (0 = todas).
       TOOL_SELECT_MAX: ${TOOL_SELECT_MAX:-24}
       # Servidor local compatível com OpenAI (ex.: Ollama em CPU): http://host:11434/v1.
@@ -105,6 +107,7 @@ services:
         PUBLIC_APP_ASSETS=chatui
         PUBLIC_ORIGIN=https://flow.n3xus.dev
         LLM_SUMMARIZATION=true
+        TASK_MODEL=@cf/meta/llama-3.3-70b-instruct-fp8-fast
         ENABLE_DATA_EXPORT=true
         ALLOW_IFRAME=false
         OPENAI_BASE_URL=http://mcp-bridge:3001
