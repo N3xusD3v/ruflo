@@ -2002,6 +2002,10 @@ async function listModels() {
   }));
   let ids = [...new Set(lists.flat())];
   if (!ids.length) ids = [...KNOWN_MODELS.gemini, ...KNOWN_MODELS.openai];
+  // The chat UI defaults to the first model; free Gemini keys have no Pro
+  // quota, so lead with DEFAULT_MODEL (a Flash model unless overridden).
+  const preferred = process.env.DEFAULT_MODEL || "gemini-flash-latest";
+  if (ids.includes(preferred)) ids = [preferred, ...ids.filter(id => id !== preferred)];
   modelsCache = { at: Date.now(), ids };
   console.log(`[models] ${ids.length} models: ` + PROVIDER_ORDER.map((n, i) => `${n}=${lists[i].length}`).join(" "));
   return ids;

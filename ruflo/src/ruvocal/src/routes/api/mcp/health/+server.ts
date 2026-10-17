@@ -72,6 +72,18 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		const headersRecord: Record<string, string> = headers?.length
 			? Object.fromEntries(headers.map((h) => [h.key, h.value]))
 			: {};
+		// Admin-configured servers (MCP_SERVERS) keep their headers server-side:
+		// /api/mcp/servers never sends them to the browser, so add them here.
+		try {
+			const baseServers = JSON.parse(config.MCP_SERVERS || "[]") as Array<{
+				url?: string;
+				headers?: Record<string, string>;
+			}>;
+			const match = Array.isArray(baseServers) ? baseServers.find((s) => s.url === url) : undefined;
+			if (match?.headers) Object.assign(headersRecord, match.headers);
+		} catch {
+			// malformed MCP_SERVERS is reported by the registry
+		}
 		if (!headersRecord["Accept"]) {
 			headersRecord["Accept"] = "application/json, text/event-stream";
 		}

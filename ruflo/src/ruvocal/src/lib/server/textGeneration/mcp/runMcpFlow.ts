@@ -103,7 +103,13 @@ export async function* runMcpFlow({
 				{ name: string; url: string; headers?: Record<string, string> }
 			>();
 			for (const s of servers) byName.set(s.name, s);
-			for (const s of custom) byName.set(s.name, s);
+			for (const s of custom) {
+				// The browser re-sends admin-configured servers without their headers
+				// (never exposed client-side); keep the server-side ones in that case.
+				const base = byName.get(s.name);
+				const keepBaseHeaders = base && base.url === s.url && !s.headers && base.headers;
+				byName.set(s.name, keepBaseHeaders ? { ...s, headers: base.headers } : s);
+			}
 			servers = [...byName.values()];
 			try {
 				logger.debug(
