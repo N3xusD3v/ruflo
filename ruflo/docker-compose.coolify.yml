@@ -15,7 +15,9 @@
 # - limites de memória em todos os serviços.
 #
 # Chaves de LLM (pelo menos uma) vão nas variáveis do Coolify:
-# GOOGLE_API_KEY, OPENROUTER_API_KEY ou OPENAI_API_KEY.
+# GOOGLE_API_KEY, OPENROUTER_API_KEY ou LLM_OPENAI_API_KEY (não OPENAI_API_KEY:
+# o Coolify injeta todas as variáveis em todos os serviços, e no chat-ui esse
+# nome é o token da ponte).
 
 services:
   mcp-bridge:
@@ -26,7 +28,7 @@ services:
     environment:
       PORT: "3001"
       NODE_ENV: production
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_API_KEY: ${LLM_OPENAI_API_KEY:-}
       GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
@@ -71,6 +73,10 @@ services:
         INCLUDE_DB: "false"
     restart: unless-stopped
     environment:
+      # Variável de ambiente vence o .env.local; o Coolify injeta as do recurso
+      # em todos os serviços, então o token da ponte vai explícito aqui.
+      OPENAI_API_KEY: ${SERVICE_PASSWORD_64_MCPTOKEN}
+      OPENAI_BASE_URL: http://mcp-bridge:3001
       # O entrypoint grava DOTENV_LOCAL em /app/.env.local.
       DOTENV_LOCAL: |
         RVF_DB_PATH=/app/db
