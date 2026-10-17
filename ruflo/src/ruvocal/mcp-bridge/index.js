@@ -1926,6 +1926,18 @@ app.post("/chat/completions", async (req, res) => {
     } else {
       body.messages = [{ role: "system", content: systemPrompt }, ...body.messages];
     }
+    // Rule 7 alone gets lost in this long English prompt (Llama answered
+    // Portuguese questions in English): repeat it at the very end.
+    const lastUser = [...body.messages].reverse().find(m => m.role === "user");
+    const lastText = typeof lastUser?.content === "string"
+      ? lastUser.content
+      : (lastUser?.content || []).map(p => p?.text || "").join(" ");
+    if (/[ãõçâêô]|\b(você|não|está|como|qual|quais|para|uma|isso|me diga)\b/i.test(lastText)) {
+      body.messages[0] = {
+        ...body.messages[0],
+        content: body.messages[0].content + "\n\nIMPORTANT: the user writes in Portuguese. Write your entire reply in Brazilian Portuguese.",
+      };
+    }
   }
   if (Array.isArray(body.tools) && body.tools.length) {
     body.tools = await selectTools(body.tools, body.messages, { alwaysNames: BUILTIN_TOOLS.map(t => t.name) });
