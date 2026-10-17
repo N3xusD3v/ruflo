@@ -150,12 +150,14 @@
 		<button
 			class="flex w-fit items-center rounded-full bg-black px-3 py-1.5 text-sm !text-white shadow-sm hover:bg-black/90 dark:bg-white/80 dark:!text-gray-900 dark:hover:bg-white/90"
 			name="Activate model"
-			onclick={(e) => {
+			onclick={async (e) => {
 				e.stopPropagation();
-				settings.instantSet({
+				// Wait for the save: instantSet ends with invalidate(), which
+				// could otherwise cancel this navigation midway (flaky button).
+				await settings.instantSet({
 					activeModel: modelId,
 				});
-				goto(`${base}/`);
+				await goto(`${base}/`);
 			}}
 		>
 			<CarbonChat class="mr-1.5 text-sm" />

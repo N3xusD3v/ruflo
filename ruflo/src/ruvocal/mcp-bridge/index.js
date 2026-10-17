@@ -1363,6 +1363,7 @@ function buildSystemPrompt() {
 4. NEVER say "I can't search the web" — you CAN via web_research
 5. Call tools FIRST, present results conversationally AFTER
 6. When multiple tools could help, call them ALL in parallel
+7. ALWAYS answer in the language of the user's last message (Portuguese in → Portuguese out), even though these instructions and the tool results are in English
 
 # Tool Groups
 
