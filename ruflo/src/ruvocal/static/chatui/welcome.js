@@ -2,9 +2,9 @@
   "use strict";
 
   const THREE_CDN = "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js";
-  const BG_COLOR = 0x0a0a1a;
-  const CYAN = 0x00d4ff;
-  const VIOLET = 0x7c3aed;
+  const BG_COLOR = 0x05070c;
+  const CYAN = 0x5cc8ff;
+  const VIOLET = 0x8b7cff;
   const AMBER = 0xf59e0b;
   const PARTICLE_COUNT = 200;
 
@@ -18,8 +18,8 @@
     canvas.height = h;
     const ctx = canvas.getContext("2d");
     const grad = ctx.createLinearGradient(0, 0, w, 0);
-    grad.addColorStop(0, "#00d4ff");
-    grad.addColorStop(1, "#7c3aed");
+    grad.addColorStop(0, "#5cc8ff");
+    grad.addColorStop(1, "#8b7cff");
     ctx.fillStyle = grad;
     ctx.font = "bold 72px system-ui, -apple-system, sans-serif";
     ctx.textAlign = "center";
@@ -87,12 +87,12 @@
     particles = new THREE.Points(pGeo, pMat);
     scene.add(particles);
 
-    // "RuFlo" text sprite
-    const textCanvas = createTextTexture("RuFlo", 512, 128);
+    // "N3XUS Flow" text sprite
+    const textCanvas = createTextTexture("N3XUS Flow", 768, 128);
     const tex = new THREE.CanvasTexture(textCanvas);
     const spriteMat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0.9 });
     textSprite = new THREE.Sprite(spriteMat);
-    textSprite.scale.set(2.5, 0.625, 1);
+    textSprite.scale.set(3.6, 0.6, 1);
     textSprite.position.y = -2.2;
     scene.add(textSprite);
 

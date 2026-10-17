@@ -13,56 +13,39 @@
 <svg
 	width="32"
 	height="32"
-	viewBox="0 0 32 32"
-	fill="none"
+	viewBox="0 0 1651 1651"
 	xmlns="http://www.w3.org/2000/svg"
 	class="logo {classNames}"
 	aria-label="{publicConfig.PUBLIC_APP_NAME} logo"
 	role="img"
 >
 	<defs>
-		<linearGradient id="wave-grad-1" x1="0" y1="0" x2="1" y2="0">
-			<stop offset="0%" stop-color="#3b82f6" />
-			<stop offset="100%" stop-color="#06b6d4" />
-		</linearGradient>
-		<linearGradient id="wave-grad-2" x1="0" y1="0" x2="1" y2="0">
-			<stop offset="0%" stop-color="#818cf8" />
-			<stop offset="100%" stop-color="#a78bfa" />
-		</linearGradient>
-		<linearGradient id="wave-grad-3" x1="0" y1="0" x2="1" y2="0">
-			<stop offset="0%" stop-color="#06b6d4" />
-			<stop offset="100%" stop-color="#2dd4bf" />
+		<linearGradient id="n3x-flow-ring" x1="0" y1="0" x2="1" y2="1">
+			<stop offset="0%" stop-color="#5cc8ff" />
+			<stop offset="100%" stop-color="#8b7cff" />
 		</linearGradient>
 	</defs>
-
-	<!-- Flow waves -->
-	<path class="wave w1" d="M2 14 Q8 9, 16 14 Q24 19, 30 14" stroke="url(#wave-grad-1)" stroke-width="2" stroke-linecap="round" fill="none" />
-	<path class="wave w2" d="M2 18 Q8 13, 16 18 Q24 23, 30 18" stroke="url(#wave-grad-2)" stroke-width="1.5" stroke-linecap="round" fill="none" />
-	<path class="wave w3" d="M2 22 Q8 17, 16 22 Q24 27, 30 22" stroke="url(#wave-grad-3)" stroke-width="1" stroke-linecap="round" fill="none" />
-
+	<!-- Símbolo N3XUS (círculo + X curvo) -->
+	<circle cx="825.5" cy="825.5" r="825.5" fill="#05070c" />
+	<circle class="ring" cx="825.5" cy="825.5" r="770" fill="none" stroke="url(#n3x-flow-ring)" stroke-width="56" />
+	<g fill="none" stroke="#fff" stroke-width="88" stroke-linecap="round" stroke-linejoin="round">
+		<path d="M380 540 L770 742 Q832 772 894 742 L1270 540" />
+		<path d="M380 1110 L770 955 Q826 925 882 955 L1270 1110" />
+	</g>
 </svg>
 
 <style>
-	.wave {
+	.ring {
 		transform-origin: center;
-	}
-	.w1 {
-		animation: wave-shift 3s ease-in-out infinite;
-	}
-	.w2 {
-		animation: wave-shift 3s ease-in-out infinite 0.5s;
-		opacity: 0.6;
-	}
-	.w3 {
-		animation: wave-shift 3s ease-in-out infinite 1s;
-		opacity: 0.4;
+		animation: ring-pulse 3s ease-in-out infinite;
 	}
 
-	@keyframes wave-shift {
-		0%, 100% { transform: translateX(0); }
-		50% { transform: translateX(2px); }
+	@keyframes ring-pulse {
+		0%, 100% { opacity: 1; }
+		50% { opacity: 0.55; }
 	}
 
-	:global(.dark) .w2 { opacity: 0.7; }
-	:global(.dark) .w3 { opacity: 0.5; }
+	@media (prefers-reduced-motion: reduce) {
+		.ring { animation: none; }
+	}
 </style>

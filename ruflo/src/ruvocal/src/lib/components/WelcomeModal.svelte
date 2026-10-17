@@ -27,12 +27,12 @@
 
 		<div class="text-gray-700 dark:text-gray-200">
 			<p class="text-[15px] leading-relaxed">
-				Welcome to <strong>{publicConfig.PUBLIC_APP_NAME}</strong>, your intelligent workflow
-				automation assistant.
+				Bem-vindo ao <strong>{publicConfig.PUBLIC_APP_NAME}</strong>, o orquestrador de agentes
+				de IA da N3XUS.
 			</p>
 			<p class="mt-3 text-[15px] leading-relaxed">
-				Powered by AI models with MCP tool integration for search, analysis, and workflow
-				execution.
+				Modelos de IA com ferramentas MCP para pesquisa, análise, memória e execução de
+				fluxos de trabalho.
 			</p>
 		</div>
 
@@ -40,7 +40,7 @@
 			class="k w-full rounded-xl bg-indigo-600 px-5 py-2.5 text-base font-medium text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600"
 			onclick={close}
 		>
-			Start chatting
+			Começar
 		</button>
 	</div>
 </Modal>

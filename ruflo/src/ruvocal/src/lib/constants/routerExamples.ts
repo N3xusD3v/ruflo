@@ -14,7 +14,7 @@ export type RouterExample = {
 	attachments?: RouterExampleAttachment[];
 };
 
-// RuFlo-themed router examples — shown on the empty-state welcome screen
+// N3XUS Flow-themed router examples — shown on the empty-state welcome screen
 // when the user hasn't enabled the full MCP toolset. Keep these light enough
 // that even a model without tool-calling can answer (no explicit tool names).
 export const routerExamples: RouterExample[] = [
@@ -38,7 +38,7 @@ export const routerExamples: RouterExample[] = [
 	},
 	{
 		title: "Memory & recall",
-		prompt: "Explain how RuFlo's persistent memory works across sessions, and give me a 3-step example of saving a preference and recalling it later.",
+		prompt: "Explain how N3XUS Flow's persistent memory works across sessions, and give me a 3-step example of saving a preference and recalling it later.",
 		followUps: [
 			{
 				title: "Namespaces",
@@ -108,7 +108,7 @@ export const routerExamples: RouterExample[] = [
 	},
 	{
 		title: "Track a long task",
-		prompt: "I'm starting a 4-week migration. How should I structure horizon tracking, milestone checkpoints, and drift detection in RuFlo?",
+		prompt: "I'm starting a 4-week migration. How should I structure horizon tracking, milestone checkpoints, and drift detection in N3XUS Flow?",
 		followUps: [
 			{
 				title: "Resume after break",
@@ -126,7 +126,7 @@ export const routerExamples: RouterExample[] = [
 			},
 			{
 				title: "Offline",
-				prompt: "What can RuFlo still do if my network drops?",
+				prompt: "What can N3XUS Flow still do if my network drops?",
 			},
 		],
 	},

@@ -178,8 +178,8 @@
 			class="text-3xl font-light tracking-[0.3em] text-indigo-100"
 			style="text-shadow: 0 0 20px rgba(99, 102, 241, 0.5), 0 0 40px rgba(99, 102, 241, 0.2);"
 		>
-			RuFlo
+			N3XUS Flow
 		</h2>
-		<p class="mt-1 text-[10px] tracking-[0.25em] text-slate-400/70">INTELLIGENT WORKFLOWS</p>
+		<p class="mt-1 text-[10px] tracking-[0.25em] text-slate-400/70">ORQUESTRAÇÃO DE AGENTES</p>
 	</div>
 </div>
