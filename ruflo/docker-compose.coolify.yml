@@ -32,6 +32,8 @@ services:
       GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # Só para chave Anthropic sem workspace (a API exige o cabeçalho).
+      ANTHROPIC_WORKSPACE_ID: ${ANTHROPIC_WORKSPACE_ID:-}
       # Extras do OpenRouter além dos ":free" com ferramentas (ids separados por vírgula).
       OPENROUTER_MODELS: ${OPENROUTER_MODELS:-}
       # Servidor local compatível com OpenAI (ex.: Ollama em CPU): http://host:11434/v1.

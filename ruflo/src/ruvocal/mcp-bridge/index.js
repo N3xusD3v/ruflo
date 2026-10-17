@@ -1240,7 +1240,12 @@ const PROVIDER_ROUTES = {
   gemini: { baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", getKey: () => process.env.GOOGLE_API_KEY },
   openrouter: { baseURL: "https://openrouter.ai/api/v1/chat/completions", getKey: () => process.env.OPENROUTER_API_KEY },
   // Anthropic's OpenAI SDK compatibility endpoint (Bearer auth, tools, streaming).
-  anthropic: { baseURL: "https://api.anthropic.com/v1/chat/completions", getKey: () => process.env.ANTHROPIC_API_KEY },
+  // Keys not scoped to a workspace need ANTHROPIC_WORKSPACE_ID.
+  anthropic: {
+    baseURL: "https://api.anthropic.com/v1/chat/completions",
+    getKey: () => process.env.ANTHROPIC_API_KEY,
+    extraHeaders: () => (process.env.ANTHROPIC_WORKSPACE_ID ? { "anthropic-workspace-id": process.env.ANTHROPIC_WORKSPACE_ID } : {}),
+  },
   local: {
     baseURL: `${LOCAL_LLM_BASE_URL}/chat/completions`,
     // Ollama ignores the key, but the proxy requires a non-empty one.
@@ -1652,7 +1657,7 @@ async function handleAutopilot(req, res, provider, body) {
     try {
       const aiResponse = await fetch(provider.baseURL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}`, ...provider.extraHeaders?.() },
         body: JSON.stringify({
           ...body,
           messages,
@@ -1861,7 +1866,7 @@ app.post("/chat/completions", async (req, res) => {
   try {
     const upstream = await fetch(provider.baseURL, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}`, ...provider.extraHeaders?.() },
       body: JSON.stringify(body),
     });
 
@@ -1942,14 +1947,18 @@ const MODEL_LISTERS = {
     const r = await fetch("https://api.openai.com/v1/models", { headers: { Authorization: `Bearer ${key}` } });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const { data = [] } = await r.json();
-    return data
+    const ids = data
       .map(m => m.id)
       .filter(id => /^(gpt-|o\d|chatgpt-)/.test(id))
-      .filter(id => !/(audio|realtime|transcribe|tts|image|search|instruct|embedding|moderation|codex|deep-research|\d{4}-\d{2}-\d{2})/.test(id));
+      .filter(id => !/(audio|realtime|transcribe|tts|image|search|instruct|embedding|moderation|codex|deep-research)/.test(id));
+    // Drop dated snapshots only when the undated alias is also available
+    // (restricted projects may expose just "gpt-4o-mini-2024-07-18").
+    const dated = /-\d{4}-\d{2}-\d{2}$/;
+    return ids.filter(id => !dated.test(id) || !ids.includes(id.replace(dated, "")));
   },
   async anthropic(key) {
     const r = await fetch("https://api.anthropic.com/v1/models?limit=100", {
-      headers: { "x-api-key": key, "anthropic-version": "2023-06-01" },
+      headers: { "x-api-key": key, "anthropic-version": "2023-06-01", ...PROVIDER_ROUTES.anthropic.extraHeaders() },
     });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const { data = [] } = await r.json();
