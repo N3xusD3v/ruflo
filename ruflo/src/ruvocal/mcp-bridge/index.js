@@ -1313,6 +1313,22 @@ function withThoughtSignatures(messages) {
   });
 }
 
+// Rewrites one SSE line so delta/message content is always a string.
+function fixNumericContent(line) {
+  if (!line.startsWith("data: {") || !/"content":\s*-?\d/.test(line)) return line;
+  try {
+    const j = JSON.parse(line.slice(6));
+    for (const c of j.choices || []) {
+      for (const part of [c.delta, c.message]) {
+        if (part && typeof part.content === "number") part.content = String(part.content);
+      }
+    }
+    return "data: " + JSON.stringify(j);
+  } catch {
+    return line;
+  }
+}
+
 // Models tried, in order, when the requested one answers a retryable error.
 const FALLBACK_MODELS = (process.env.FALLBACK_MODELS || "").split(",").map(s => s.trim()).filter(Boolean);
 const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
@@ -1983,6 +1999,14 @@ app.post("/chat/completions", async (req, res) => {
           const { done, value } = await reader.read();
           if (done) break;
           const text = decoder.decode(value, { stream: true });
+          if (providerName === "cloudflare") {
+            // Workers AI streams some deltas with numeric JSON content
+            // ({"content":17}); OpenAI clients drop them, so numbers vanish.
+            const lines = (pending + text).split("\n");
+            pending = lines.pop();
+            res.write(lines.map(fixNumericContent).join("\n") + (lines.length ? "\n" : ""));
+            continue;
+          }
           res.write(text);
           if (providerName === "gemini") {
             const lines = (pending + text).split("\n");
@@ -1994,7 +2018,10 @@ app.post("/chat/completions", async (req, res) => {
           }
         }
       } catch (e) { /* stream closed */ }
-      finally { res.end(); }
+      finally {
+        if (providerName === "cloudflare" && pending) res.write(fixNumericContent(pending));
+        res.end();
+      }
     } else {
       const text = await upstream.text();
       if (providerName === "gemini") {
