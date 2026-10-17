@@ -15,7 +15,7 @@
 # - limites de memória em todos os serviços.
 #
 # Chaves de LLM (pelo menos uma) vão nas variáveis do Coolify:
-# GOOGLE_API_KEY, OPENROUTER_API_KEY ou LLM_OPENAI_API_KEY (não OPENAI_API_KEY:
+# GOOGLE_API_KEY, ANTHROPIC_API_KEY, OPENROUTER_API_KEY ou LLM_OPENAI_API_KEY (não OPENAI_API_KEY:
 # o Coolify injeta todas as variáveis em todos os serviços, e no chat-ui esse
 # nome é o token da ponte).
 
@@ -32,6 +32,12 @@ services:
       GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # Extras do OpenRouter além dos ":free" com ferramentas (ids separados por vírgula).
+      OPENROUTER_MODELS: ${OPENROUTER_MODELS:-}
+      # Servidor local compatível com OpenAI (ex.: Ollama em CPU): http://host:11434/v1.
+      # Vazio = desligado. Os modelos aparecem como "local:<nome>".
+      LOCAL_LLM_BASE_URL: ${LOCAL_LLM_BASE_URL:-}
+      LOCAL_LLM_API_KEY: ${LOCAL_LLM_API_KEY:-}
       SEARCH_API_URL: ${SEARCH_API_URL:-}
       RESEARCH_API_URL: ${RESEARCH_API_URL:-}
       MCP_GROUP_INTELLIGENCE: ${MCP_GROUP_INTELLIGENCE:-true}

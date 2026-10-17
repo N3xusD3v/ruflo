@@ -1229,18 +1229,38 @@ app.get("/mcp-servers", (_, res) => {
 // CHAT COMPLETIONS PROXY
 // =============================================================================
 
+// Local OpenAI-compatible server (Ollama, llama.cpp, vLLM...). Off unless
+// LOCAL_LLM_BASE_URL is set, e.g. http://ollama:11434/v1. Its models are
+// exposed as "local:<name>" so they never collide with hosted ids.
+const LOCAL_LLM_BASE_URL = (process.env.LOCAL_LLM_BASE_URL || "").replace(/\/+$/, "");
+const LOCAL_PREFIX = "local:";
+
 const PROVIDER_ROUTES = {
   openai: { baseURL: "https://api.openai.com/v1/chat/completions", getKey: () => process.env.OPENAI_API_KEY },
   gemini: { baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", getKey: () => process.env.GOOGLE_API_KEY },
   openrouter: { baseURL: "https://openrouter.ai/api/v1/chat/completions", getKey: () => process.env.OPENROUTER_API_KEY },
+  // Anthropic's OpenAI SDK compatibility endpoint (Bearer auth, tools, streaming).
+  anthropic: { baseURL: "https://api.anthropic.com/v1/chat/completions", getKey: () => process.env.ANTHROPIC_API_KEY },
+  local: {
+    baseURL: `${LOCAL_LLM_BASE_URL}/chat/completions`,
+    // Ollama ignores the key, but the proxy requires a non-empty one.
+    getKey: () => (LOCAL_LLM_BASE_URL ? process.env.LOCAL_LLM_API_KEY || "local" : ""),
+  },
 };
 
 function resolveProvider(model) {
   if (typeof model === "string") {
+    if (model.startsWith(LOCAL_PREFIX)) return "local";
+    if (model.startsWith("claude-")) return "anthropic";
     if (model.startsWith("gemini-")) return "gemini";
     if (model.includes("/")) return "openrouter";
   }
   return "openai";
+}
+
+// Model id as the upstream expects it (strips the "local:" prefix).
+function upstreamModelId(providerName, model) {
+  return providerName === "local" && typeof model === "string" ? model.slice(LOCAL_PREFIX.length) : model;
 }
 
 // =============================================================================
@@ -1812,7 +1832,7 @@ app.post("/chat/completions", async (req, res) => {
   if (!apiKey) return res.status(401).json({ error: { message: `No API key for provider: ${providerName}` } });
 
   // Inject comprehensive system prompt as the first message
-  const body = { ...req.body };
+  const body = { ...req.body, model: upstreamModelId(providerName, model) };
   if (body.messages && Array.isArray(body.messages)) {
     let systemPrompt = buildSystemPrompt();
     // Add autopilot instructions if autopilot mode is active
@@ -1892,17 +1912,98 @@ app.post("/chat/completions", async (req, res) => {
 // MODELS & HEALTH
 // =============================================================================
 
-const KNOWN_MODELS = [
-  "gemini-2.5-pro", "gemini-2.5-flash",
-  "gpt-4.1", "gpt-4.1-mini", "gpt-4o", "gpt-4o-mini",
-  "o3-mini", "o1-mini",
-];
+// Fallback when a provider's live listing fails (or nothing is configured).
+const KNOWN_MODELS = {
+  gemini: ["gemini-2.5-pro", "gemini-2.5-flash"],
+  openai: ["gpt-4.1", "gpt-4.1-mini", "gpt-4o", "gpt-4o-mini", "o3-mini"],
+  anthropic: [],
+  openrouter: [],
+  local: [],
+};
 
-app.get("/models", (_, res) => {
-  res.json({ object: "list", data: KNOWN_MODELS.map(id => ({
+// Optional extra OpenRouter ids (comma-separated); by default only the
+// tool-capable ":free" models are listed, to keep the picker short.
+const OPENROUTER_MODELS = (process.env.OPENROUTER_MODELS || "")
+  .split(",").map(s => s.trim()).filter(Boolean);
+
+const MODEL_LISTERS = {
+  async gemini(key) {
+    const r = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/models", {
+      headers: { Authorization: `Bearer ${key}` },
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const { data = [] } = await r.json();
+    return data
+      .map(m => String(m.id).replace(/^models\//, ""))
+      .filter(id => /^gemini-/.test(id) && /(pro|flash)/.test(id))
+      .filter(id => !/(embedding|tts|image|live|audio|native|aqa|computer-use|robotics)/.test(id));
+  },
+  async openai(key) {
+    const r = await fetch("https://api.openai.com/v1/models", { headers: { Authorization: `Bearer ${key}` } });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const { data = [] } = await r.json();
+    return data
+      .map(m => m.id)
+      .filter(id => /^(gpt-|o\d|chatgpt-)/.test(id))
+      .filter(id => !/(audio|realtime|transcribe|tts|image|search|instruct|embedding|moderation|codex|deep-research|\d{4}-\d{2}-\d{2})/.test(id));
+  },
+  async anthropic(key) {
+    const r = await fetch("https://api.anthropic.com/v1/models?limit=100", {
+      headers: { "x-api-key": key, "anthropic-version": "2023-06-01" },
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const { data = [] } = await r.json();
+    return data.map(m => m.id).filter(id => id.startsWith("claude-"));
+  },
+  async openrouter() {
+    const r = await fetch("https://openrouter.ai/api/v1/models");
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const { data = [] } = await r.json();
+    const ids = data
+      .filter(m => (m.supported_parameters || []).includes("tools"))
+      .map(m => m.id)
+      .filter(id => id.endsWith(":free") || OPENROUTER_MODELS.includes(id));
+    return [...new Set([...ids, ...OPENROUTER_MODELS])];
+  },
+  async local() {
+    const r = await fetch(`${LOCAL_LLM_BASE_URL}/models`);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const { data = [] } = await r.json();
+    return data.map(m => LOCAL_PREFIX + m.id);
+  },
+};
+
+// Picker order: first entry is the chat UI's default model.
+const PROVIDER_ORDER = ["gemini", "anthropic", "openai", "openrouter", "local"];
+const MODELS_TTL_MS = 10 * 60 * 1000;
+let modelsCache = { at: 0, ids: [] };
+
+async function listModels() {
+  if (modelsCache.ids.length && Date.now() - modelsCache.at < MODELS_TTL_MS) return modelsCache.ids;
+  const lists = await Promise.all(PROVIDER_ORDER.map(async name => {
+    const key = PROVIDER_ROUTES[name].getKey();
+    if (!key) return [];
+    try {
+      const ids = await MODEL_LISTERS[name](key);
+      return ids.sort().reverse();
+    } catch (err) {
+      console.warn(`[models] ${name} listing failed (${err.message}); using fallback`);
+      return KNOWN_MODELS[name];
+    }
+  }));
+  let ids = [...new Set(lists.flat())];
+  if (!ids.length) ids = [...KNOWN_MODELS.gemini, ...KNOWN_MODELS.openai];
+  modelsCache = { at: Date.now(), ids };
+  console.log(`[models] ${ids.length} models: ` + PROVIDER_ORDER.map((n, i) => `${n}=${lists[i].length}`).join(" "));
+  return ids;
+}
+
+app.get("/models", async (_, res) => {
+  const ids = await listModels();
+  res.json({ object: "list", data: ids.map(id => ({
     id,
     object: "model",
-    owned_by: "system",
+    owned_by: resolveProvider(id),
     providers: [{ supports_tools: true }],
   })) });
 });
