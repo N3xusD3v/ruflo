@@ -95,4 +95,7 @@ ENV BODY_SIZE_LIMIT=15728640
 COPY --from=builder --chown=1000 /app/build /app/build
 COPY --from=builder --chown=1000 /app/node_modules /app/node_modules
 
+# Pasta do banco RVF (arquivo JSON) criada como uid 1000 para o volume herdar o dono.
+RUN mkdir -p /app/db
+
 CMD ["/bin/bash", "-c", "/app/entrypoint.sh"]

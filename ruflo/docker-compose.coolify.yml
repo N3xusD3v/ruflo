@@ -1,37 +1,23 @@
 # N3XUS Flow — stack para o Coolify (VM 520).
 # Coolify: Build Pack "Docker Compose", Base Directory /ruflo,
-# arquivo /docker-compose.coolify.yml; domínio só no serviço "nginx" (porta 3000).
+# arquivo /docker-compose.coolify.yml; domínio só no serviço "nginx", COM a porta:
+# https://flow.n3xus.dev:3000 (a imagem nginx expõe 80 e 3000; sem a porta o
+# Traefik escolhe 80 e responde 502).
 #
 # Diferenças em relação ao docker-compose.yml do upstream:
 # - nenhuma porta publicada no host (o Traefik do Coolify fala com o nginx);
 # - a ponte MCP escuta em 0.0.0.0 dentro da rede da stack, com token
 #   obrigatório (no upstream ela escuta em 127.0.0.1 e o chat-ui não alcança);
 # - segredos gerados pelo Coolify (SERVICE_PASSWORD_*), nada no repositório;
-# - memória da ponte (.claude-flow) e MongoDB em volumes persistentes;
+# - sem MongoDB: o chat-ui deste fork grava num arquivo RVF (JSON) em /app/db,
+#   que ganhou volume (no upstream ficava no contêiner e sumia a cada deploy);
+# - memória da ponte (.claude-flow) em volume persistente;
 # - limites de memória em todos os serviços.
 #
 # Chaves de LLM (pelo menos uma) vão nas variáveis do Coolify:
 # GOOGLE_API_KEY, OPENROUTER_API_KEY ou OPENAI_API_KEY.
 
 services:
-  mongodb:
-    image: mongo:7
-    restart: unless-stopped
-    command: ["--auth", "--wiredTigerCacheSizeGB", "0.25"]
-    environment:
-      MONGO_INITDB_DATABASE: n3xus-flow
-      MONGO_INITDB_ROOT_USERNAME: n3xusflow
-      MONGO_INITDB_ROOT_PASSWORD: ${SERVICE_PASSWORD_MONGO}
-    volumes:
-      - mongo-data:/data/db
-    mem_limit: 512m
-    healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
-
   mcp-bridge:
     build:
       context: ./src/ruvocal/mcp-bridge
@@ -87,8 +73,7 @@ services:
     environment:
       # O entrypoint grava DOTENV_LOCAL em /app/.env.local.
       DOTENV_LOCAL: |
-        MONGODB_URL=mongodb://n3xusflow:${SERVICE_PASSWORD_MONGO}@mongodb:27017/n3xus-flow?authSource=admin
-        MONGODB_DB_NAME=n3xus-flow
+        RVF_DB_PATH=/app/db
         PUBLIC_APP_NAME=N3XUS Flow
         PUBLIC_APP_DESCRIPTION=Orquestração de agentes de IA da N3XUS
         PUBLIC_APP_ASSETS=chatui
@@ -104,11 +89,10 @@ services:
         COOKIE_SAMESITE=lax
         ADMIN_CLI_LOGIN=false
         ENABLE_CONFIG_MANAGER=false
+    volumes:
+      - chat-db:/app/db
     depends_on:
-      mongodb:
-        condition: service_healthy
-      mcp-bridge:
-        condition: service_started
+      - mcp-bridge
     mem_limit: 768m
 
   nginx:
@@ -129,5 +113,5 @@ services:
       retries: 3
 
 volumes:
-  mongo-data:
+  chat-db:
   mcp-state:
