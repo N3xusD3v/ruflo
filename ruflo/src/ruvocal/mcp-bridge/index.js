@@ -1263,6 +1263,41 @@ function resolveProvider(model) {
   return "openai";
 }
 
+// Gemini 3 thought signatures. Tool calls come back with
+// extra_content.google.thought_signature, and Gemini rejects (400) the next
+// turn if the signature is missing. The chat UI drops extra_content, so the
+// bridge remembers signatures by tool_call id and re-attaches them; unknown
+// ids (old conversations) get Gemini's documented skip value.
+const THOUGHT_SIG_SKIP = "skip_thought_signature_validator";
+const thoughtSigs = new Map();
+
+function rememberThoughtSignatures(payload) {
+  for (const choice of payload?.choices || []) {
+    for (const tc of choice.message?.tool_calls || choice.delta?.tool_calls || []) {
+      const sig = tc?.extra_content?.google?.thought_signature;
+      if (tc?.id && sig) {
+        thoughtSigs.set(tc.id, sig);
+        if (thoughtSigs.size > 2000) thoughtSigs.delete(thoughtSigs.keys().next().value);
+      }
+    }
+  }
+}
+
+function withThoughtSignatures(messages) {
+  if (!Array.isArray(messages)) return messages;
+  return messages.map(m => {
+    if (m?.role !== "assistant" || !Array.isArray(m.tool_calls)) return m;
+    return {
+      ...m,
+      tool_calls: m.tool_calls.map(tc =>
+        tc?.extra_content?.google?.thought_signature
+          ? tc
+          : { ...tc, extra_content: { ...tc.extra_content, google: { thought_signature: thoughtSigs.get(tc.id) || THOUGHT_SIG_SKIP } } }
+      ),
+    };
+  });
+}
+
 // Model id as the upstream expects it (strips the "local:" prefix).
 function upstreamModelId(providerName, model) {
   return providerName === "local" && typeof model === "string" ? model.slice(LOCAL_PREFIX.length) : model;
@@ -1672,6 +1707,7 @@ async function handleAutopilot(req, res, provider, body) {
       break;
     }
 
+    rememberThoughtSignatures(aiResult);
     const choice = aiResult.choices?.[0];
     if (!choice) {
       sendAutopilotEvent(res, { type: 'autopilot_error', error: 'No response from AI' });
@@ -1857,6 +1893,7 @@ app.post("/chat/completions", async (req, res) => {
       body.messages = [{ role: "system", content: systemPrompt }, ...body.messages];
     }
   }
+  if (providerName === "gemini") body.messages = withThoughtSignatures(body.messages);
 
   // Route to autopilot handler if x-autopilot header is set
   if (req.headers['x-autopilot'] === 'true') {
@@ -1896,16 +1933,30 @@ app.post("/chat/completions", async (req, res) => {
     if (req.body?.stream && upstream.body) {
       const reader = upstream.body.getReader();
       const decoder = new TextDecoder();
+      let pending = ""; // partial SSE line, scanned for thought signatures
       try {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          res.write(decoder.decode(value, { stream: true }));
+          const text = decoder.decode(value, { stream: true });
+          res.write(text);
+          if (providerName === "gemini") {
+            const lines = (pending + text).split("\n");
+            pending = lines.pop();
+            for (const line of lines) {
+              if (!line.startsWith("data: ") || !line.includes("thought_signature")) continue;
+              try { rememberThoughtSignatures(JSON.parse(line.slice(6))); } catch {}
+            }
+          }
         }
       } catch (e) { /* stream closed */ }
       finally { res.end(); }
     } else {
-      res.send(await upstream.text());
+      const text = await upstream.text();
+      if (providerName === "gemini") {
+        try { rememberThoughtSignatures(JSON.parse(text)); } catch {}
+      }
+      res.send(text);
     }
   } catch (err) {
     console.error(`Proxy error [${providerName}/${model}]:`, err.message);
