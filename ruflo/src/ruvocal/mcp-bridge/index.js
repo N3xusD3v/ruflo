@@ -2058,12 +2058,12 @@ const MODEL_LISTERS = {
       .filter(m => (m.properties || []).some(p => p.property_id === "function_calling" && String(p.value) === "true"))
       .map(m => m.name);
   },
-  async zai(key) {
-    const r = await fetch("https://api.z.ai/api/paas/v4/models", { headers: { Authorization: `Bearer ${key}` } });
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const { data = [] } = await r.json();
-    // Only the free Flash tier unless ZAI_ALL_MODELS=true (paid models bill the account).
-    return data.map(m => m.id).filter(id => process.env.ZAI_ALL_MODELS === "true" || /flash/i.test(id));
+  // Z.ai's /models lists only the paid GLM-5.x (the "flash"/"flashx" ones
+  // answer 429 "insufficient balance"); the free tier is the older Flash
+  // models, so list those (override with ZAI_MODELS, comma-separated).
+  async zai() {
+    const ids = (process.env.ZAI_MODELS || "glm-4.7-flash,glm-4.5-flash").split(",").map(s => s.trim()).filter(Boolean);
+    return ids;
   },
   async ollama(key) {
     const r = await fetch("https://ollama.com/v1/models", { headers: { Authorization: `Bearer ${key}` } });

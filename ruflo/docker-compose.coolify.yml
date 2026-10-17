@@ -39,6 +39,7 @@ services:
       CLOUDFLARE_AI_TOKEN: ${CLOUDFLARE_AI_TOKEN:-}
       # Z.ai (só os modelos glm-*-flash, grátis) e Ollama Cloud.
       ZAI_API_KEY: ${ZAI_API_KEY:-}
+      ZAI_MODELS: ${ZAI_MODELS:-glm-4.7-flash,glm-4.5-flash}
       OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
       # Extras do OpenRouter além dos ":free" com ferramentas (ids separados por vírgula).
       OPENROUTER_MODELS: ${OPENROUTER_MODELS:-}
