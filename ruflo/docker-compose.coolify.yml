@@ -38,6 +38,8 @@ services:
       OPENROUTER_MODELS: ${OPENROUTER_MODELS:-}
       # Primeiro modelo da lista = padrão do chat (o Pro do Gemini grátis não tem cota).
       DEFAULT_MODEL: ${DEFAULT_MODEL:-gemini-3.5-flash}
+      # Ferramentas enviadas por chamada, escolhidas por relevância (0 = todas).
+      TOOL_SELECT_MAX: ${TOOL_SELECT_MAX:-24}
       # Servidor local compatível com OpenAI (ex.: Ollama em CPU): http://host:11434/v1.
       # Vazio = desligado. Os modelos aparecem como "local:<nome>".
       LOCAL_LLM_BASE_URL: ${LOCAL_LLM_BASE_URL:-}
@@ -67,7 +69,8 @@ services:
       - /tmp
     volumes:
       - mcp-state:/app/.claude-flow
-    mem_limit: 1536m
+    # +~300 MB do modelo de embedding da seleção de ferramentas (tool-select.js).
+    mem_limit: 2g
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 30s

@@ -1,6 +1,7 @@
 import express from "express";
 import { spawn } from "child_process";
 import { randomUUID, timingSafeEqual } from "crypto";
+import { selectTools, warmToolSelector } from "./tool-select.js";
 
 // =============================================================================
 // CONFIGURATION
@@ -1663,19 +1664,10 @@ async function handleAutopilot(req, res, provider, body) {
   // Get the tools list for the AI provider (OpenAI function calling format)
   // Limit to BUILTIN_TOOLS + top external tools to avoid overwhelming the model
   // (Gemini struggles with 100+ tool definitions)
+  // Pick the tools most relevant to the request (tool-select.js) instead of
+  // a fixed prefix list, capped at 30 (Gemini struggles with 100+ tools).
   const MAX_AUTOPILOT_TOOLS = 30;
-  const externalTools = getActiveTools();
-  // Prioritize tools from enabled high-value groups
-  const priorityPrefixes = ['ruvector__hooks', 'ruvector__memory', 'ruflo__memory', 'ruflo__agent'];
-  const prioritized = externalTools
-    .sort((a, b) => {
-      const aP = priorityPrefixes.some(p => a.name.startsWith(p)) ? 0 : 1;
-      const bP = priorityPrefixes.some(p => b.name.startsWith(p)) ? 0 : 1;
-      return aP - bP;
-    })
-    .slice(0, MAX_AUTOPILOT_TOOLS - BUILTIN_TOOLS.length);
-  const allTools = [...BUILTIN_TOOLS, ...prioritized];
-  const toolDefs = allTools.map(t => ({
+  const allToolDefs = [...BUILTIN_TOOLS, ...getActiveTools()].map(t => ({
     type: 'function',
     function: {
       name: t.name,
@@ -1683,7 +1675,11 @@ async function handleAutopilot(req, res, provider, body) {
       parameters: t.inputSchema || { type: 'object', properties: {} },
     },
   }));
-  console.log(`[autopilot] ${allTools.length} tools (${BUILTIN_TOOLS.length} builtin + ${prioritized.length} external)`);
+  const toolDefs = await selectTools(allToolDefs, messages, {
+    alwaysNames: BUILTIN_TOOLS.map(t => t.name),
+    max: Math.min(MAX_AUTOPILOT_TOOLS, Number(process.env.TOOL_SELECT_MAX ?? 24) || MAX_AUTOPILOT_TOOLS),
+  });
+  console.log(`[autopilot] ${toolDefs.length} tools of ${allToolDefs.length}`);
 
   while (step < maxSteps && !aborted) {
     // 1. Call upstream AI provider (non-streaming for tool call parsing)
@@ -1894,6 +1890,9 @@ app.post("/chat/completions", async (req, res) => {
     }
   }
   if (providerName === "gemini") body.messages = withThoughtSignatures(body.messages);
+  if (Array.isArray(body.tools) && body.tools.length) {
+    body.tools = await selectTools(body.tools, body.messages, { alwaysNames: BUILTIN_TOOLS.map(t => t.name) });
+  }
 
   // Route to autopilot handler if x-autopilot header is set
   if (req.headers['x-autopilot'] === 'true') {
@@ -2117,6 +2116,7 @@ app.get("/groups", (_, res) => {
 // =============================================================================
 
 async function main() {
+  warmToolSelector();
   const isPublic = BIND_HOST !== "127.0.0.1" && BIND_HOST !== "localhost";
   if (isPublic && !process.env.MCP_AUTH_TOKEN) {
     console.error(

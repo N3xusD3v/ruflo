@@ -1,7 +1,7 @@
 {
   "name": "mcp-bridge",
   "version": "1.0.0",
-  "description": "MCP Bridge — routes AI tool calls to backend services with multi-provider chat proxy",
+  "description": "MCP Bridge \u2014 routes AI tool calls to backend services with multi-provider chat proxy",
   "type": "module",
   "main": "index.js",
   "scripts": {
@@ -9,7 +9,8 @@
     "dev": "node --watch index.js"
   },
   "dependencies": {
-    "express": "^4.21.0"
+    "express": "^4.21.0",
+    "@huggingface/transformers": "4.3.1"
   },
   "engines": {
     "node": ">=20"

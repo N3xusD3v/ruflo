@@ -7,6 +7,10 @@ WORKDIR /app
 COPY package.json ./
 RUN npm install --production
 
+# Multilingual embedding model for per-request tool selection (tool-select.js),
+# baked in so the bridge never downloads at runtime (read-only rootfs).
+RUN node --input-type=module -e "import { pipeline, env } from '@huggingface/transformers'; env.cacheDir = '/app/models'; const f = await pipeline('feature-extraction', 'Xenova/multilingual-e5-base', { dtype: 'q8' }); const o = await f(['query: teste'], { pooling: 'mean', normalize: true }); console.log('embedding dim', o.dims.at(-1));"
+
 # Pre-install MCP backends for faster startup (avoids npx download on first call)
 # Each installed separately so one failure doesn't block others
 RUN npm install -g ruvector || true
@@ -16,6 +20,7 @@ RUN npm install -g gemini-mcp-server || true
 RUN npm install -g @openai/codex || true
 
 COPY index.js ./
+COPY tool-select.js ./
 COPY mcp-stdio-kernel.js ./
 
 # Create writable directories for MCP backends (ruflo, ruvector, agentic-flow)
